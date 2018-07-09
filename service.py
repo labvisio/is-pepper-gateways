@@ -5,6 +5,6 @@ from driver import PepperCameraDriver, kPepperTopCamera
 #service = CameraGateway(driver=driver)
 #service.run(id=10, broker_uri="amqp://localhost")
 
-driver = PepperCameraDriver(robot_uri="Ada.local", camera_id=kPepperTopCamera)
+driver = PepperCameraDriver(robot_uri="localhost:9559", camera_id=kPepperTopCamera)
 service = CameraGateway(driver=driver)
 service.run(id=10, broker_uri="amqp://10.10.2.20:30000")

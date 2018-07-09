@@ -102,10 +102,10 @@ class PepperCameraDriver(object):
         self.camera = None
         self.camera_id = camera_id
 
-        self.fps = 1.0
+        self.fps = 10.0
         self.deadline = None
-        self.resolution = Resolution(height=120, width=160)
-        self.color_space = ColorSpaces.Value("RGB")
+        self.resolution = Resolution(width=320, height=240)
+        self.color_space = ColorSpaces.Value("GRAY")
         image_format = ImageFormat()
         image_format.format = ImageFormats.Value("JPEG")
         image_format.compression.value = 0.8
@@ -117,11 +117,22 @@ class PepperCameraDriver(object):
             parameter = parameters[name]
             if "auto_id" in parameter:
                 check_status(
-                    self.video.setCameraParameter(self.camera, parameter.auto_id,
+                    self.video.setCameraParameter(self.camera, parameter["auto_id"],
                                                   camera_setting.automatic))
             if "id" in parameter and not camera_setting.automatic:
-                ratio = (parameter.max - parameter.min) * camera_setting.ratio + parameter.min
-                check_status(self.video.setCameraParameter(self.camera, parameter.id, ratio))
+                ratio = (parameter["max"] - parameter["min"]) * camera_setting.ratio + parameter["min"]
+                check_status(self.video.setCameraParameter(self.camera, parameter["id"], ratio))
+
+    def __get_parameter(self, name):
+        camera_setting = CameraSetting()
+        with self.lock:
+            parameter = parameters[name]
+            if "auto_id" in parameter:
+                camera_setting.automatic = self.video.getCameraParameter(self.camera, parameter["auto_id"])
+            if "id" in parameter: 
+                value = self.video.getCameraParameter(self.camera, parameter["id"])
+                camera_setting.ratio = (value - parameter["min"]) / float(parameter["max"] - parameter["min"])
+        return camera_setting
 
     ### Sampling Settings
     def set_sampling_rate(self, value):
@@ -277,22 +288,22 @@ class PepperCameraDriver(object):
         pass
 
     def get_brightness(self):
-        return None
+        return self.__get_parameter("brightness")
 
     def get_exposure(self):
-        return None
+        return self.__get_parameter("exposure")
 
     def get_focus(self):
-        return None
+        return self.__get_parameter("focus")
 
     def get_sharpness(self):
         return None
 
     def get_hue(self):
-        return None
+        return self.__get_parameter("hue")
 
     def get_saturation(self):
-        return None
+        return self.__get_parameter("saturation")
 
     def get_gamma(self):
         return None
@@ -301,7 +312,7 @@ class PepperCameraDriver(object):
         return None
 
     def get_gain(self):
-        return None
+        return self.__get_parameter("gain")
 
     def get_white_balance_bu(self):
         return None
@@ -334,11 +345,12 @@ class PepperCameraDriver(object):
             if diff > 0:
                 time.sleep(diff)
             else:
-                self.logger.info("[GrabImage] We are late by {}", diff)
                 self.deadline = time.time()
 
+            before_get = time.time()
             frame = self.video.getImageRemote(self.camera)
-            self.logger.info("[GrabImage] New Frame")
+
+            proc_begin = time.time()
 
             width, height, buffer = frame[0], frame[1], frame[6]
             mat = np.frombuffer(buffer, dtype=np.uint8).reshape(height, width, -1)
@@ -346,6 +358,12 @@ class PepperCameraDriver(object):
                 mat = cv2.cvtColor(mat, cv2.COLOR_BGR2GRAY)
             image = cv2.imencode(ext=self.encode_format, img=mat, params=self.encode_parameters)
 
+            proc_end = time.time()
+
+            self.logger.info("[GrabImage] New Frame (get={:.1f}ms, proc={:.1f}ms, late={:.1f}ms)",
+                             (proc_begin - before_get) * 1000, 
+                             (proc_end - proc_begin) * 1000,
+                             diff * 1000)
             self.deadline += 1.0 / self.fps
 
         return Image(data=image[1].tobytes())

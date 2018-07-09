@@ -3,6 +3,7 @@ from is_wire.core import Channel, Subscription, Message
 from is_msgs.camera_pb2 import CameraConfig, CameraConfigFields
 from is_msgs.image_pb2 import ColorSpaces
 from is_msgs.common_pb2 import FieldSelector
+import sys
 
 channel = Channel("amqp://10.10.2.20:30000")
 subscription = Subscription(channel)
@@ -13,10 +14,14 @@ def on_set_config(msg, ctx):
 
 
 config = CameraConfig()
-config.sampling.frequency.value = 1.0
-config.image.resolution.width = 160
-config.image.resolution.height = 120
+config.sampling.frequency.value = 10.0
+config.image.resolution.width = 640
+config.image.resolution.height = 480
 config.image.color_space.value = ColorSpaces.Value("GRAY")
+config.camera.exposure.ratio = 0.1
+config.camera.exposure.automatic = False 
+config.camera.gain.ratio = 0.05
+config.camera.gain.automatic = False 
 
 msg = Message()
 msg.pack(config)
@@ -29,6 +34,7 @@ channel.publish(msg)
 def on_get_config(msg, ctx):
     print(msg.metadata()["rpc-status"]["code"], msg.metadata()["rpc-status"]["why"],
           msg.unpack(CameraConfig))
+    sys.exit(0)
 
 
 selector = FieldSelector(fields=[CameraConfigFields.Value("ALL")])
