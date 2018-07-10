@@ -124,11 +124,16 @@ class CameraGateway(object):
             logger = Logger("CameraGateway")
             logger.info("Starting to capture")
             while not stop.is_set():
-                image = driver.grab_image()
-                message = Message()
-                message.set_topic(name + ".Frame")
-                message.pack(image)
-                channel.publish(message)
+                image = Message()
+                image.set_topic(name + ".Frame")
+                image.pack(driver.grab_image())
+                channel.publish(image)
+
+                pose = Message()
+                pose.set_topic(name + ".Pose")
+                pose.pack(driver.get_pose())
+                channel.publish(pose)
+            
             driver.stop_capture()
 
         stop = Event()

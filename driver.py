@@ -1,10 +1,12 @@
 import qi
 import vision_definitions as qivis
+import motion as qimotion
 import numpy as np
 import cv2
 import sys
 from is_msgs.image_pb2 import *
 from is_msgs.camera_pb2 import *
+from is_msgs.common_pb2 import *
 from is_msgs.wire_pb2 import Status, StatusCode
 from is_wire.core import Logger
 from threading import RLock
@@ -23,7 +25,7 @@ def check_status(ok, why="Operation Failed"):
 
 kPepperTopCamera = qivis.kTopCamera
 kPepperBottomCamera = qivis.kBottomCamera
-kPepperDepth = qivis.kDepthCamera
+kPepperDepthCamera = qivis.kDepthCamera
 
 parameters = {
     "brightness": {
@@ -90,7 +92,7 @@ class PepperCameraDriver(object):
     lock = RLock()
     logger = Logger("PepperCameraDriver")
 
-    def __init__(self, robot_uri, camera_id):
+    def __init__(self, robot_uri, camera_id, camera_frame_id, robot_base_id):
         self.qi_app = qi.Application(["is::PepperCameraDriver", "--qi-url=" + robot_uri])
         self.qi_app.start()
         self.qi_session = self.qi_app.session
@@ -111,6 +113,10 @@ class PepperCameraDriver(object):
         image_format.compression.value = 0.8
         self.set_image_format(image_format)
 
+        self.motion = self.qi_session.service("ALMotion")
+        self.camera_frame_id = camera_frame_id
+        self.robot_base_id = robot_base_id
+
     def __set_parameter(self, name, camera_setting):
         assert_type(camera_setting, CameraSetting, "camera_setting")
         with self.lock:
@@ -120,7 +126,8 @@ class PepperCameraDriver(object):
                     self.video.setCameraParameter(self.camera, parameter["auto_id"],
                                                   camera_setting.automatic))
             if "id" in parameter and not camera_setting.automatic:
-                ratio = (parameter["max"] - parameter["min"]) * camera_setting.ratio + parameter["min"]
+                ratio = (
+                    parameter["max"] - parameter["min"]) * camera_setting.ratio + parameter["min"]
                 check_status(self.video.setCameraParameter(self.camera, parameter["id"], ratio))
 
     def __get_parameter(self, name):
@@ -128,10 +135,12 @@ class PepperCameraDriver(object):
         with self.lock:
             parameter = parameters[name]
             if "auto_id" in parameter:
-                camera_setting.automatic = self.video.getCameraParameter(self.camera, parameter["auto_id"])
-            if "id" in parameter: 
+                camera_setting.automatic = self.video.getCameraParameter(
+                    self.camera, parameter["auto_id"])
+            if "id" in parameter:
                 value = self.video.getCameraParameter(self.camera, parameter["id"])
-                camera_setting.ratio = (value - parameter["min"]) / float(parameter["max"] - parameter["min"])
+                camera_setting.ratio = (
+                    value - parameter["min"]) / float(parameter["max"] - parameter["min"])
         return camera_setting
 
     ### Sampling Settings
@@ -361,9 +370,49 @@ class PepperCameraDriver(object):
             proc_end = time.time()
 
             self.logger.info("[GrabImage] New Frame (get={:.1f}ms, proc={:.1f}ms, late={:.1f}ms)",
-                             (proc_begin - before_get) * 1000, 
-                             (proc_end - proc_begin) * 1000,
-                             diff * 1000)
+                             (proc_begin - before_get) * 1000,
+                             (proc_end - proc_begin) * 1000, diff * 1000)
             self.deadline += 1.0 / self.fps
 
         return Image(data=image[1].tobytes())
+
+    def get_pose(self):
+        tf = FrameTransformation()
+        with self.lock:
+            setattr(tf, "from", self.camera_frame_id)
+            setattr(tf, "to", self.robot_base_id)
+            if self.camera_id == kPepperTopCamera:
+                effector = "CameraTop"
+            elif self.camera_id == kPepperBottomCamera:
+                effector = "CameraBottom"
+            elif self.camera_id == kPepperDepthCamera:
+                effector = "CameraDepth"
+
+            use_sensors = True
+            rows = tf.tf.shape.dims.add()
+            rows.size = 4
+            rows.name = "rows"
+
+            cols = tf.tf.shape.dims.add()
+            cols.size = 4
+            cols.name = "cols"
+
+            tf.tf.type = DataType.Value("DOUBLE_TYPE")
+            Tcam_to_base = np.matrix(
+                self.motion.getTransform(effector, qimotion.FRAME_ROBOT, use_sensors)).reshape(
+                    4, 4)
+            Rz = np.matrix([[np.cos(-np.pi/2), -np.sin(-np.pi/2), 0, 0], \
+                            [np.sin(-np.pi/2),  np.cos(-np.pi/2), 0, 0], \
+                            [0,                                0, 1, 0], \
+                            [0,                                0, 0, 1]])
+
+            Rx = np.matrix([[1,                0,                 0, 0], \
+                            [0, np.cos(-np.pi/2), -np.sin(-np.pi/2), 0], \
+                            [0, np.sin(-np.pi/2),  np.cos(-np.pi/2), 0], \
+                            [0,                0,                 0, 1]])
+
+            # Fix frame orientation so that the z axis is aligned with the camera
+            T = Tcam_to_base * Rz * Rx
+            tf.tf.doubles.extend(T.reshape(1, -1).tolist()[0])
+
+        return tf
