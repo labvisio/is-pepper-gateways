@@ -1,21 +1,23 @@
 import qi
 import vision_definitions as qivis
 import motion as qimotion
+
 import numpy as np
 import cv2
-import sys
-from is_msgs.image_pb2 import *
-from is_msgs.camera_pb2 import *
-from is_msgs.common_pb2 import *
-from is_msgs.wire_pb2 import Status, StatusCode
-from is_wire.core import Logger
 from threading import RLock
 import time
+
+from is_msgs.image_pb2 import Image, ColorSpaces, Resolution, \
+                              ImageFormat, ImageFormats
+from is_msgs.camera_pb2 import CameraSetting, FrameTransformation
+from is_msgs.common_pb2 import DataType
+from is_wire.core import Logger
 
 
 def assert_type(instance, _type, name):
     if not isinstance(instance, _type):
-        raise TypeError("Object {} must be of type {}".format(name, _type.DESCRIPTOR.full_name))
+        raise TypeError("Object {} must be of type {}".format(
+            name, _type.DESCRIPTOR.full_name))
 
 
 def check_status(ok, why="Operation Failed"):
@@ -73,13 +75,13 @@ def resolution_is_to_naoqi(resolution):
     if resolution.width == 1280 and resolution.height == 960:
         return qivis.k4VGA
     raise RuntimeError(
-        "Invalid Resolution Value, expected (80,60) or (160,120) or (320,240) or (640,480) or (1280,960)"
-    )
+        "Invalid Resolution Value, expected (80,60) or (160,120)"
+        " or (320,240) or (640,480) or (1280,960)")
 
 
 def color_space_is_to_naoqi(color_space):
     if color_space == ColorSpaces.Value("RGB") or \
-        color_space == ColorSpaces.Value("GRAY"):
+       color_space == ColorSpaces.Value("GRAY"):
         return qivis.kBGRColorSpace
     if color_space == ColorSpaces.Value("HSV"):
         return qivis.kHSVColorSpace
@@ -92,12 +94,11 @@ class PepperCameraDriver(object):
     lock = RLock()
     logger = Logger("PepperCameraDriver")
 
-    def __init__(self, robot_uri, camera_id, camera_frame_id, robot_base_id):
-        self.qi_app = qi.Application(["is::PepperCameraDriver", "--qi-url=" + robot_uri])
+    def __init__(self, robot_uri, camera_id, camera_frame_id, base_frame_id):
+        self.qi_app = qi.Application(
+            ["is::PepperCameraDriver", "--qi-url=" + robot_uri])
         self.qi_app.start()
         self.qi_session = self.qi_app.session
-
-        self.local = True if "localhost" in robot_uri or "127.0.0.1" in robot_uri else False
 
         self.video = self.qi_session.service("ALVideoDevice")
 
@@ -115,20 +116,27 @@ class PepperCameraDriver(object):
 
         self.motion = self.qi_session.service("ALMotion")
         self.camera_frame_id = camera_frame_id
-        self.robot_base_id = robot_base_id
+        self.base_frame_id = base_frame_id
 
     def __set_parameter(self, name, camera_setting):
         assert_type(camera_setting, CameraSetting, "camera_setting")
         with self.lock:
-            parameter = parameters[name]
-            if "auto_id" in parameter:
+            param = parameters[name]
+            if "auto_id" in param:
+                value = camera_setting.automatic
+                status = self.video.setCameraParameter(self.camera,
+                                                       param["auto_id"], value)
                 check_status(
-                    self.video.setCameraParameter(self.camera, parameter["auto_id"],
-                                                  camera_setting.automatic))
-            if "id" in parameter and not camera_setting.automatic:
-                ratio = (
-                    parameter["max"] - parameter["min"]) * camera_setting.ratio + parameter["min"]
-                check_status(self.video.setCameraParameter(self.camera, parameter["id"], ratio))
+                    status,
+                    "Failed to set camera parameter='{}' to automatic={}".
+                    format(name, value))
+
+            if "id" in param and not camera_setting.automatic:
+                ratio = camera_setting.ratio
+                value = (param["max"] - param["min"]) * ratio + param["min"]
+                status = self.video.setCameraParameter(self.camera,
+                                                       param["id"], value)
+                check_status(status)
 
     def __get_parameter(self, name):
         camera_setting = CameraSetting()
@@ -137,13 +145,15 @@ class PepperCameraDriver(object):
             if "auto_id" in parameter:
                 camera_setting.automatic = self.video.getCameraParameter(
                     self.camera, parameter["auto_id"])
+
             if "id" in parameter:
-                value = self.video.getCameraParameter(self.camera, parameter["id"])
-                camera_setting.ratio = (
-                    value - parameter["min"]) / float(parameter["max"] - parameter["min"])
+                value = self.video.getCameraParameter(self.camera,
+                                                      parameter["id"])
+                camera_setting.ratio = (value - parameter["min"]) / float(
+                    parameter["max"] - parameter["min"])
         return camera_setting
 
-    ### Sampling Settings
+    # Sampling Settings
     def set_sampling_rate(self, value):
         assert_type(value, (int, float), "value")
         with self.lock:
@@ -163,12 +173,13 @@ class PepperCameraDriver(object):
     def get_delay(self):
         return None
 
-    ### Image Settings
+    # Image Settings
     def set_resolution(self, resolution):
         assert_type(resolution, Resolution, "resolution")
         with self.lock:
             check_status(
-                self.video.setResolution(self.camera, resolution_is_to_naoqi(resolution)),
+                self.video.setResolution(self.camera,
+                                         resolution_is_to_naoqi(resolution)),
                 "Failed to change resolution")
             self.resolution = resolution
 
@@ -203,7 +214,8 @@ class PepperCameraDriver(object):
         assert_type(color_space, int, "color_space")
         with self.lock:
             check_status(
-                self.video.setColorSpace(self.camera, color_space_is_to_naoqi(color_space)),
+                self.video.setColorSpace(self.camera,
+                                         color_space_is_to_naoqi(color_space)),
                 "Failed to set color space")
             self.color_space = color_space
 
@@ -246,7 +258,8 @@ class PepperCameraDriver(object):
                 image_format.compression.value = self.encode_parameters[1] / 9.0
             elif self.encode_format == ".webp":
                 image_format.format = ImageFormats.Value("WebP")
-                image_format.compression.value = (self.encode_parameters[1] - 1) / 99.0
+                image_format.compression.value = (
+                    self.encode_parameters[1] - 1) / 99.0
         return image_format
 
     def get_color_space(self):
@@ -256,7 +269,7 @@ class PepperCameraDriver(object):
     def get_region_of_interest(self):
         return None
 
-    ### Camera Settings
+    # Camera Settings
     def set_brightness(self, camera_setting):
         self.__set_parameter("brightness", camera_setting)
 
@@ -339,8 +352,9 @@ class PepperCameraDriver(object):
         with self.lock:
             resolution = resolution_is_to_naoqi(self.resolution)
             color_space = color_space_is_to_naoqi(self.color_space)
-            id = "is::xxPepperCameraDriver.{}".format(self.camera_id)
-            self.camera = self.video.subscribeCamera(id, self.camera_id, resolution, color_space,
+            name = "is::PepperCameraDriver.{}".format(self.camera_id)
+            self.camera = self.video.subscribeCamera(name, self.camera_id,
+                                                     resolution, color_space,
                                                      int(self.fps))
             self.deadline = time.time() + 1.0 / self.fps
 
@@ -351,9 +365,12 @@ class PepperCameraDriver(object):
     def grab_image(self):
         with self.lock:
             diff = self.deadline - time.time()
-            if diff > 0:
-                time.sleep(diff)
-            else:
+
+        if diff > 0:
+            time.sleep(diff)
+
+        with self.lock:
+            if diff < 0:
                 self.deadline = time.time()
 
             before_get = time.time()
@@ -362,16 +379,19 @@ class PepperCameraDriver(object):
             proc_begin = time.time()
 
             width, height, buffer = frame[0], frame[1], frame[6]
-            mat = np.frombuffer(buffer, dtype=np.uint8).reshape(height, width, -1)
+            mat = np.frombuffer(
+                buffer, dtype=np.uint8).reshape(height, width, -1)
             if self.color_space == ColorSpaces.Value("GRAY"):
                 mat = cv2.cvtColor(mat, cv2.COLOR_BGR2GRAY)
-            image = cv2.imencode(ext=self.encode_format, img=mat, params=self.encode_parameters)
+            image = cv2.imencode(
+                ext=self.encode_format, img=mat, params=self.encode_parameters)
 
             proc_end = time.time()
 
-            self.logger.info("[GrabImage] New Frame (get={:.1f}ms, proc={:.1f}ms, late={:.1f}ms)",
-                             (proc_begin - before_get) * 1000,
-                             (proc_end - proc_begin) * 1000, diff * 1000)
+            self.logger.debug(
+                "[GrabImage] New Frame (get={:.1f}ms, proc={:.1f}ms, next_in={:.1f}ms)",
+                (proc_begin - before_get) * 1000,
+                (proc_end - proc_begin) * 1000, diff * 1000)
             self.deadline += 1.0 / self.fps
 
         return Image(data=image[1].tobytes())
@@ -380,7 +400,7 @@ class PepperCameraDriver(object):
         tf = FrameTransformation()
         with self.lock:
             setattr(tf, "from", self.camera_frame_id)
-            setattr(tf, "to", self.robot_base_id)
+            setattr(tf, "to", self.base_frame_id)
             if self.camera_id == kPepperTopCamera:
                 effector = "CameraTop"
             elif self.camera_id == kPepperBottomCamera:
@@ -399,8 +419,8 @@ class PepperCameraDriver(object):
 
             tf.tf.type = DataType.Value("DOUBLE_TYPE")
             Tcam_to_base = np.matrix(
-                self.motion.getTransform(effector, qimotion.FRAME_ROBOT, use_sensors)).reshape(
-                    4, 4)
+                self.motion.getTransform(effector, qimotion.FRAME_ROBOT,
+                                         use_sensors)).reshape(4, 4)
             Rz = np.matrix([[np.cos(-np.pi/2), -np.sin(-np.pi/2), 0, 0], \
                             [np.sin(-np.pi/2),  np.cos(-np.pi/2), 0, 0], \
                             [0,                                0, 1, 0], \
