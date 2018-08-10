@@ -1,8 +1,8 @@
-from is_wire.core import Channel, Message, Logger
+from is_wire.core import Channel, Message, Logger, Status, StatusCode
 from is_wire.rpc import ServiceProvider, LogInterceptor
 
 from google.protobuf.empty_pb2 import Empty
-from is_msgs.common_pb2 import FieldSelector
+from is_msgs.common_pb2 import FieldSelector, Position
 from is_msgs.robot_pb2 import RobotConfig
 
 import socket
@@ -35,6 +35,10 @@ class RobotGateway(object):
             self.driver.set_speed(robot_config.speed)
         return Empty()
 
+    def navigate_to(self, position, ctx):
+        self.driver.navigate_to(position.x, position.y)
+        return Empty()
+
     def run(self, id, broker_uri):
         service_name = "RobotGateway.{}".format(id)
 
@@ -55,9 +59,17 @@ class RobotGateway(object):
             reply_type=Empty,
             function=self.set_config)
 
+        server.delegate(
+            topic=service_name + ".NavigateTo",
+            request_type=Position,
+            reply_type=Empty,
+            function=self.navigate_to)
+
         self.logger.info("Listening for requests")
         while True:
             pose = self.driver.get_base_pose()
+            self.logger.debug("Publishing pose")
+
             channel.publish(
                 Message(content=pose), topic=service_name + ".Pose")
 

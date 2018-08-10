@@ -4,6 +4,7 @@ from itertools import izip
 
 import qi
 import numpy as np
+import threading
 
 from is_msgs.camera_pb2 import FrameTransformation
 from is_msgs.common_pb2 import DataType, Speed
@@ -64,6 +65,7 @@ class PepperRobotDriver(object):
         self.memory = self.qi_session.service("ALMemory")
         self.motion = self.qi_session.service("ALMotion")
         self.posture = self.qi_session.service("ALRobotPosture")
+        self.navigation = self.qi_session.service("ALNavigation")
 
         self.laser_topics = laser_topics()
 
@@ -74,12 +76,17 @@ class PepperRobotDriver(object):
         self.max_angular_speed = 1.0
 
         self.deadline = time.time()
-        self.sampling_rate = 15.0
+        self.sampling_rate = 10.0
 
         self.posture.goToPosture("StandInit", 0.5)
         self.motion.moveInit()
 
         # self.proxies["ALAutonomousLife"].setState(behavior)
+
+    def navigate_to(self, x, y):
+        thread = threading.Thread(
+            target=self.navigation.navigateTo, args=(x, y))
+        thread.start()
 
     def set_speed(self, speed):
         assert_type(speed, Speed, "speed")

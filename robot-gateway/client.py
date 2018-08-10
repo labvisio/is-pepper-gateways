@@ -10,8 +10,8 @@ channel = Channel(uri)
 subscription = Subscription(channel)
 
 config = RobotConfig()
-config.speed.linear = float(argv[1] or 0.0) 
-config.speed.angular = float(argv[2] if len(argv) is 3 else 0.0) 
+config.speed.linear = float(argv[1] or 0.0)
+config.speed.angular = float(argv[2] if len(argv) is 3 else 0.0)
 
 channel.publish(
     message=Message(content=config, reply_to=subscription),
