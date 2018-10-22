@@ -69,13 +69,11 @@ class RobotGateway(object):
         self.logger.info("Listening for requests")
         while True:
             pose = self.driver.get_base_pose()
-            frameTransList = FrameTransformations()
-            frameTransList.tfs.extend([pose])
             self.logger.debug("Publishing pose")
 
             channel.publish(
                 #Message(content=pose), topic=service_name + ".Pose")
-                Message(content=frameTransList), topic=service_name + ".FrameTransformations")
+                Message(content=pose), topic=service_name + ".FrameTransformations")
 
             try:
                 message = channel.consume(timeout=0)

@@ -1,7 +1,7 @@
 from is_wire.core import Channel, Message, Logger
 from is_wire.rpc import ServiceProvider, LogInterceptor
 
-from is_msgs.camera_pb2 import CameraConfig, CameraConfigFields
+from is_msgs.camera_pb2 import CameraConfig, CameraConfigFields, FrameTransformations
 from is_msgs.common_pb2 import FieldSelector
 from google.protobuf.empty_pb2 import Empty
 
@@ -147,8 +147,11 @@ class CameraGateway(object):
                 Message(content=image), topic=service_name + ".Frame")
 
             pose = self.driver.get_pose()
+            frameTransList = FrameTransformations()
+            frameTransList.tfs.extend([pose])
             channel.publish(
-                Message(content=pose), topic=service_name + ".Pose")
+                Message(content=frameTransList), topic=service_name + ".FrameTransformations")
+                #Message(content=pose), topic=service_name + ".Pose")
 
             try:
                 message = channel.consume(timeout=0)
