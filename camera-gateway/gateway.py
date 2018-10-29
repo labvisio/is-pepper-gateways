@@ -151,7 +151,6 @@ class CameraGateway(object):
             frameTransList.tfs.extend([pose])
             channel.publish(
                 Message(content=frameTransList), topic=service_name + ".FrameTransformations")
-                #Message(content=pose), topic=service_name + ".Pose")
 
             try:
                 message = channel.consume(timeout=0)

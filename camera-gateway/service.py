@@ -18,9 +18,9 @@ cameras = {
     "bottom": kPepperBottomCamera,
     "depth": kPepperDepthCamera,
 }
+
 broker_uri = env_or_default("BROKER_URI", "amqp://10.10.2.20:30000")
-#robot_uri = env_or_default("ROBOT_URI", "localhost:9559")
-robot_uri = env_or_default("ROBOT_URI", "10.10.0.111:9559")
+robot_uri = env_or_default("ROBOT_URI", "localhost:9559")
 robot_camera = env_or_default("ROBOT_CAMERA", "TOP").lower()
 base_frame_id = int(env_or_default("BASE_FRAME_ID", "2000"))
 camera_frame_id = int(env_or_default("CAMERA_FRAME_ID", "10"))

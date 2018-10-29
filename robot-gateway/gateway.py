@@ -74,7 +74,6 @@ class RobotGateway(object):
             self.logger.debug("Publishing pose")
 
             channel.publish(
-                #Message(content=pose), topic=service_name + ".Pose")
                 Message(content=frameTransList), topic=service_name + ".FrameTransformations")
 
             try:
