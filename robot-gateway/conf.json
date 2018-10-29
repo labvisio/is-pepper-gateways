@@ -1,0 +1,19 @@
+{
+    "broker_uri": "amqp://localhost:5672",
+    "robot_uri": "localhost:9559",
+    "robot_id": 0,
+    "driver_params": {
+        "base_frame_id": 2000,
+        "world_frame_id": 2001,
+        "collision_protection_enabled": {
+            "Move": true,
+            "Arms": true,
+            "LArm": true,
+            "RArm": true
+        },
+        "orthogonal_security_distance": 0.4,
+        "tangential_security_distance": 0.4,
+        "max_linear_speed": 0.35,
+        "max_angular_speed": 1.0
+    }
+}

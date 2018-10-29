@@ -47,15 +47,18 @@ class PepperRobotDriver(object):
     lock = RLock()
     logger = Logger("PepperRobotDriver")
 
-    def __init__(self,
-                 robot_uri,
-                 base_frame_id,
-                 world_frame_id,
-                 behavior=kSolitaryBehavior):
+    def __init__(self, robot_uri, parameters):
         """
         Args:
-            world_frame_id (int): id of the robot world frame of reference,
-            this is usually determined by the place where the robot is powered.
+            robot_uri (string): "ip:port" to connect to the robot.
+            parameters (dict): dict with the driver parameters: 
+                - "base_frame_id": int
+                - "world_frame_id": int
+                - "max_linear_speed": float
+                - "max_angular_speed": float
+                - "collision_protection_enabled": bool dict
+                - "orthogonal_security_distance": float
+                - "tangential_security_distance": float
         """
         self.qi_app = qi.Application(
             ["is::PepperRobotDriver", "--qi-url=" + robot_uri])
@@ -69,11 +72,11 @@ class PepperRobotDriver(object):
 
         self.laser_topics = laser_topics()
 
-        self.base_frame_id = base_frame_id
-        self.world_frame_id = world_frame_id
+        self.base_frame_id = parameters["base_frame_id"]
+        self.world_frame_id = parameters["world_frame_id"]
 
-        self.max_linear_speed = 0.35
-        self.max_angular_speed = 1.0
+        self.max_linear_speed = parameters["max_linear_speed"]
+        self.max_angular_speed = parameters["max_angular_speed"]
 
         self.deadline = time.time()
         self.sampling_rate = 10.0
@@ -81,11 +84,18 @@ class PepperRobotDriver(object):
         self.posture.goToPosture("StandInit", 0.5)
         self.motion.moveInit()
 
-        # self.proxies["ALAutonomousLife"].setState(behavior)
+        for part, enabled in parameters[
+                "collision_protection_enabled"].iteritems():
+            self.motion.setExternalCollisionProtectionEnabled(part, enabled)
 
-    def navigate_to(self, x, y):
+        self.motion.setOrthogonalSecurityDistance(
+            parameters["orthogonal_security_distance"])
+        self.motion.setTangentialSecurityDistance(
+            parameters["tangential_security_distance"])
+
+    def navigate_to(self, x, y, heading=0):
         thread = threading.Thread(
-            target=self.navigation.navigateTo, args=(x, y))
+            target=self.motion.moveTo, args=(x, y, heading))
         thread.start()
 
     def set_speed(self, speed):
