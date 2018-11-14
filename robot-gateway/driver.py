@@ -92,11 +92,19 @@ class PepperRobotDriver(object):
             parameters["orthogonal_security_distance"])
         self.motion.setTangentialSecurityDistance(
             parameters["tangential_security_distance"])
+        #print("Orthogonal security distance: ", self.motion.getOrthogonalSecurityDistance())
+        #print("Tangential security distance: ", self.motion.getTangentialSecurityDistance())
 
-    def navigate_to(self, x, y, heading=0):
+    def navigate_to(self, x, y):
+        thread = threading.Thread(
+            target=self.navigation.navigateTo, args=(x, y))
+        thread.start()
+
+    def move_to(self, x, y, heading=0):
         thread = threading.Thread(
             target=self.motion.moveTo, args=(x, y, heading))
         thread.start()
+
 
     def set_speed(self, speed):
         assert_type(speed, Speed, "speed")

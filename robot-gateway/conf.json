@@ -1,6 +1,6 @@
 {
-    "broker_uri": "amqp://localhost:5672",
-    "robot_uri": "localhost:9559",
+    "broker_uri": "amqp://10.10.2.20:30000",
+    "robot_uri": "10.10.0.111:9559",
     "robot_id": 0,
     "driver_params": {
         "base_frame_id": 2000,
@@ -11,9 +11,9 @@
             "LArm": true,
             "RArm": true
         },
-        "orthogonal_security_distance": 0.4,
-        "tangential_security_distance": 0.4,
-        "max_linear_speed": 0.35,
-        "max_angular_speed": 1.0
+        "orthogonal_security_distance": 0.2,
+        "tangential_security_distance": 0.1,
+        "max_linear_speed": 0.25,
+        "max_angular_speed": 0.8
     }
 }
