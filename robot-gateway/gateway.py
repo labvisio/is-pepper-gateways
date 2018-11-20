@@ -2,6 +2,7 @@ from is_wire.core import Channel, Message, Logger, Status, StatusCode
 from is_wire.rpc import ServiceProvider, LogInterceptor
 
 from google.protobuf.empty_pb2 import Empty
+from google.protobuf.struct_pb2 import Struct
 from is_msgs.common_pb2 import FieldSelector, Position, Pose
 from is_msgs.robot_pb2 import RobotConfig
 from is_msgs.camera_pb2 import FrameTransformations
@@ -44,6 +45,24 @@ class RobotGateway(object):
         self.driver.move_to(pose.position.x, pose.position.y,pose.orientation.yaw)
         return Empty()
 
+    def pause_awareness(self, req, ctx):
+        self.driver.pause_awareness()
+        return Empty()
+
+    def resume_awareness(self, req, ctx):
+        self.driver.resume_awareness()
+        return Empty()
+
+    def set_awareness(self, req, ctx):
+        self.driver.set_awareness(req["enabled"])
+        return Empty()
+
+    #def set_awareness_off(self, req, ctx):
+    #    self.driver.set_awareness_off()
+    #    return Empty()
+
+
+
     def run(self, id, broker_uri):
         service_name = "RobotGateway.{}".format(id)
 
@@ -76,6 +95,30 @@ class RobotGateway(object):
             reply_type=Empty,
             function=self.move_to)
 
+        server.delegate(
+            topic=service_name + ".PauseAwareness",
+            request_type=Empty,
+            reply_type=Empty,
+            function=self.pause_awareness)
+
+        server.delegate(
+            topic=service_name + ".ResumeAwareness",
+            request_type=Empty,
+            reply_type=Empty,
+            function=self.resume_awareness)
+
+        server.delegate(
+            topic=service_name + ".SetAwareness",
+            request_type=Struct,
+            reply_type=Empty,
+            function=self.set_awareness)
+
+
+        #server.delegate(
+        #    topic=service_name + ".SetAwarenessOff",
+        #    request_type=Empty,
+        #    reply_type=Empty,
+        #    function=self.set_awareness_off)
 
 
         self.logger.info("Listening for requests")

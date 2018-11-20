@@ -69,6 +69,7 @@ class PepperRobotDriver(object):
         self.motion = self.qi_session.service("ALMotion")
         self.posture = self.qi_session.service("ALRobotPosture")
         self.navigation = self.qi_session.service("ALNavigation")
+        self.awareness = self.qi_session.service("ALBasicAwareness")
 
         self.laser_topics = laser_topics()
 
@@ -104,6 +105,21 @@ class PepperRobotDriver(object):
         thread = threading.Thread(
             target=self.motion.moveTo, args=(x, y, heading))
         thread.start()
+
+    def pause_awareness(self):
+        with self.lock:
+            self.awareness.pauseAwareness()
+
+    def resume_awareness(self):
+        with self.lock:
+            self.awareness.resumeAwareness()
+
+    def set_awareness(self,enabled):
+        self.awareness.setEnabled(enabled)
+    
+        
+
+
 
 
     def set_speed(self, speed):
